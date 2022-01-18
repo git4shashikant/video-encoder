@@ -21,9 +21,9 @@ public class AzureConfig {
     public Executor asyncExecutor()
     {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(5);
-        executor.setMaxPoolSize(5);
-        executor.setQueueCapacity(100);
+        executor.setCorePoolSize(10);
+        executor.setMaxPoolSize(100);
+        executor.setQueueCapacity(500);
         executor.initialize();
         return executor;
     }

@@ -3,36 +3,37 @@ package com.hm.demovideo.models;
 import ws.schild.jave.encode.enums.X264_PROFILE;
 
 public enum EncodingAttributeType {
-    VID_640X480X160000("aac",
+    VID_360X240X160000("aac",
             64000,
             2,
             44100,
             "h264",
-            160000,
-            15,
-            640,
-            480,
-            X264_PROFILE.BASELINE),
-    VID_1280X720X160000("aac",
-            64000,
-            2,
-            44100,
-            "h264",
-            160000,
-            25,
-            1280,
-            720,
-            X264_PROFILE.BASELINE),
-    VID_1920X160000("aac",
-            64000,
-            2,
-            44100,
-            "h264",
-            160000,
+            400000,
             30,
-            1920,
-            1080,
-            X264_PROFILE.BASELINE);
+            360,
+            240,
+            X264_PROFILE.BASELINE),
+    VID_640X360X160000("aac",
+            128000,
+            2,
+            44100,
+            "h264",
+            1100000,
+            30,
+            640,
+            360,
+            X264_PROFILE.HIGH),
+    VID_960X640X160000("aac",
+            160000,
+            2,
+            44100,
+            "h264",
+            3500000,
+            30,
+            960,
+            640,
+            X264_PROFILE.HIGH);
+
 
     private final String audioCodec;
     private final Integer audioBitRate, audioChannels, audioSamplingRate;
@@ -41,7 +42,7 @@ public enum EncodingAttributeType {
     private final X264_PROFILE videoProfile;
 
     EncodingAttributeType(String audioCodec, Integer audioBitRate, Integer audioChannels, Integer audioSamplingRate,
-                          String videoCodec, Integer videoBitRate, Integer videoFrameRate, Integer videoWidth, Integer videoHeight, X264_PROFILE videoProfile) {
+                          String videoCodec, Integer videoBitRate, Integer videoFrameRate, Integer videoHeight, Integer videoWidth, X264_PROFILE videoProfile) {
         this.audioCodec = audioCodec;
         this.audioBitRate = audioBitRate;
         this.audioChannels = audioChannels;

@@ -22,10 +22,7 @@ import java.util.concurrent.Future;
 @Component
 public class VideoEncoderTask {
 
-    private static final String TARGET_FORMAT = "mp4";
-    private static final String TEMP_DIR = "temp";
     private static final String MP4_CONTENT_TYPE = "video/mp4";
-
     private final IVideoService videoService;
 
     public VideoEncoderTask(IVideoService videoService) {
@@ -33,10 +30,7 @@ public class VideoEncoderTask {
     }
 
     @Async("asyncExecutor")
-    public Future<String> encode(File source, EncodingAttributeType attributeType) throws EncoderException, IOException {
-        String fileName = source.getName().substring(0, source.getName().lastIndexOf("."));
-        File target = new File(String.format("%s//%s_%d_%d_%d.%s", TEMP_DIR, fileName, attributeType.getVideoWidth(), attributeType.getVideoHeight(), 160000, TARGET_FORMAT));
-
+    public Future<String> encode(File source, EncodingAttributeType attributeType, File target, String targetFormat) throws EncoderException, IOException {
         AudioAttributes audio = new AudioAttributes();
         audio.setCodec(attributeType.getAudioCodec());
         audio.setBitRate(attributeType.getAudioBitRate());
@@ -53,7 +47,7 @@ public class VideoEncoderTask {
         EncodingAttributes attrs = new EncodingAttributes();
         attrs.setAudioAttributes(audio);
         attrs.setVideoAttributes(video);
-        attrs.setOutputFormat(TARGET_FORMAT);
+        attrs.setOutputFormat(targetFormat);
 
         Encoder encoder = new Encoder();
         encoder.encode(new MultimediaObject(source), target, attrs);
@@ -62,6 +56,7 @@ public class VideoEncoderTask {
         headers.setContentType(MP4_CONTENT_TYPE);
         String uploadUrl = videoService.uploadFile(target, headers);
 
+        FileUtils.forceDelete(target);
         return new AsyncResult<>(uploadUrl);
     }
 }
