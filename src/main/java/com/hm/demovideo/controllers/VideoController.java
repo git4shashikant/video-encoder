@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import ws.schild.jave.EncoderException;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 
 @RestController
 public class VideoController {
@@ -33,6 +34,18 @@ public class VideoController {
     public @ResponseBody ResponseEntity encode(@RequestParam(value = "mediaResource") MultipartFile mediaResource) throws IOException, EncoderException {
         videoService.upload(mediaResource);
         encoderManager.encode(mediaResource);
+
+        return ResponseEntity.ok(null);
+    }
+
+    @PostMapping(
+            value = "/transmux",
+            produces = { "application/json" },
+            consumes = { "multipart/form-data" }
+    )
+    public @ResponseBody ResponseEntity transmux(@RequestParam(value = "mediaResource") MultipartFile mediaResource) throws IOException, ExecutionException, InterruptedException {
+        videoService.upload(mediaResource);
+        encoderManager.transmux(mediaResource);
 
         return ResponseEntity.ok(null);
     }

@@ -4,6 +4,7 @@ import com.azure.storage.blob.models.BlobHttpHeaders;
 import com.hm.demovideo.interfaces.IVideoService;
 import com.hm.demovideo.models.EncodingAttributeType;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.AsyncResult;
 import org.springframework.stereotype.Component;
@@ -25,6 +26,7 @@ public class VideoEncoderTask {
     private static final String MP4_CONTENT_TYPE = "video/mp4";
     private final IVideoService videoService;
 
+    @Autowired
     public VideoEncoderTask(IVideoService videoService) {
         this.videoService = videoService;
     }

@@ -2,7 +2,6 @@ package com.hm.demovideo.tasks;
 
 import com.azure.storage.blob.models.BlobHttpHeaders;
 import com.hm.demovideo.interfaces.IVideoService;
-import com.hm.demovideo.models.EncodingAttributeType;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
@@ -17,38 +16,41 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 import java.util.concurrent.Future;
 
 @Component
-public class ThumbnailExtractorTask {
+public class HLSTransmuxingTask {
 
-    private static final String PNG_TARGET_FORMAT = ".png";
-    private static final Log LOG = LogFactory.getLog(ThumbnailExtractorTask.class);
+    private static final String MP4_CONTENT_TYPE = "video/mp4";
+    private static final Log LOG = LogFactory.getLog(HLSTransmuxingTask.class);
+    public static final String M3U8_CONTENT_TYPE = "application/vnd.apple.mpegurl";
 
     private final ProcessLocator locator;
     private final IVideoService videoService;
 
     @Autowired
-    public ThumbnailExtractorTask(IVideoService videoService) {
+    public HLSTransmuxingTask(IVideoService videoService) {
         this.locator = new DefaultFFMPEGLocator();
         this.videoService = videoService;
     }
 
     @Async("asyncExecutor")
-    public Future<String> render(File source, EncodingAttributeType attributeType, int seconds, File target, int quality) throws IOException {
+    public Future<String> transmux(File source, File target, String fileName) throws IOException {
         var ffmpeg = this.locator.createExecutor();
+
         ffmpeg.addArgument("-i");
         ffmpeg.addArgument(source.getAbsolutePath());
+        ffmpeg.addArgument("-codec:");
+        ffmpeg.addArgument("copy");
+        ffmpeg.addArgument("-start_number");
+        ffmpeg.addArgument("0");
+        ffmpeg.addArgument("-hls_time");
+        ffmpeg.addArgument("10");
+        ffmpeg.addArgument("-hls_list_size");
+        ffmpeg.addArgument("0");
         ffmpeg.addArgument("-f");
-        ffmpeg.addArgument("image2");
-        ffmpeg.addArgument("-vframes");
-        ffmpeg.addArgument("1");
-        ffmpeg.addArgument("-ss");
-        ffmpeg.addArgument(String.valueOf(seconds));
-        ffmpeg.addArgument("-s");
-        ffmpeg.addArgument(String.format("%sx%s", attributeType.getVideoWidth(), attributeType.getVideoHeight()));
-        ffmpeg.addArgument("-qscale");
-        ffmpeg.addArgument(String.valueOf(quality));
+        ffmpeg.addArgument("hls");
         ffmpeg.addArgument(target.getAbsolutePath());
 
         ffmpeg.execute();
@@ -67,11 +69,22 @@ public class ThumbnailExtractorTask {
         }
 
         var headers = new BlobHttpHeaders();
-        headers.setContentType(PNG_TARGET_FORMAT);
+        headers.setContentType(M3U8_CONTENT_TYPE);
+        Arrays.stream(target.getParentFile().listFiles())
+                .filter(file -> file.getName().contains(fileName) && file.getName().endsWith(".ts"))
+                .forEach(tsFile -> videoService.uploadFile(tsFile, headers));
         String uploadUrl = videoService.uploadFile(target, headers);
 
+        Arrays.stream(target.getParentFile().listFiles())
+                .filter(file -> file.getName().contains(fileName) && file.getName().endsWith(".ts"))
+                .forEach(tsFile -> {
+                    try {
+                        FileUtils.forceDelete(tsFile);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
         FileUtils.forceDelete(target);
         return new AsyncResult<>(uploadUrl);
     }
-
 }
