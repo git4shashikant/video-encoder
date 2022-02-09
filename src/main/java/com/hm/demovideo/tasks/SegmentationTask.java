@@ -19,42 +19,41 @@ import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.concurrent.Future;
 
-/***********************************************************************************************************
-* ffmpeg -i filename.mp4 -codec: copy -start_number 0 -hls_time 10 -hls_list_size 0 -f hls filename.m3u8
-************************************************************************************************************/
-
+/******************************************************************************
+* ffmpeg -i input.mp4 -map 0 -c copy -f segment -segment_time 1800 -reset_timestamps 1 output_%03d.mp4
+* *****************************************************************************/
 @Component
-public class HLSTransmuxingTask {
-
-    private static final Log LOG = LogFactory.getLog(HLSTransmuxingTask.class);
-    public static final String M3U8_CONTENT_TYPE = "application/x-mpegURL";
+public class SegmentationTask {
 
     private final ProcessLocator locator;
     private final IVideoService videoService;
 
+    private static final String MP4_CONTENT_TYPE = "video/mp4";
+    private static final Log LOG = LogFactory.getLog(SegmentationTask.class);
+
     @Autowired
-    public HLSTransmuxingTask(IVideoService videoService) {
+    public SegmentationTask(IVideoService videoService) {
         this.locator = new DefaultFFMPEGLocator();
         this.videoService = videoService;
     }
 
     @Async("asyncExecutor")
-    public Future<String> transmuxHls(File source, File target, String fileName) throws IOException {
+    public Future<String> segmentVideo(File source, String fileName, String targetFormat) throws IOException {
         var ffmpeg = this.locator.createExecutor();
 
         ffmpeg.addArgument("-i");
         ffmpeg.addArgument(source.getAbsolutePath());
+        ffmpeg.addArgument("-map");
+        ffmpeg.addArgument("0");
         ffmpeg.addArgument("-codec:");
         ffmpeg.addArgument("copy");
-        ffmpeg.addArgument("-start_number");
-        ffmpeg.addArgument("0");
-        ffmpeg.addArgument("-hls_time");
-        ffmpeg.addArgument("10");
-        ffmpeg.addArgument("-hls_list_size");
-        ffmpeg.addArgument("0");
         ffmpeg.addArgument("-f");
-        ffmpeg.addArgument("hls");
-        ffmpeg.addArgument(target.getAbsolutePath());
+        ffmpeg.addArgument("segment");
+        ffmpeg.addArgument("-segment_time");
+        ffmpeg.addArgument("10");
+        ffmpeg.addArgument("-reset_timestamps");
+        ffmpeg.addArgument("1");
+        ffmpeg.addArgument(String.format("%s//%s.%s", "temp", fileName + "%03d", targetFormat));
 
         ffmpeg.execute();
 
@@ -72,14 +71,13 @@ public class HLSTransmuxingTask {
         }
 
         var headers = new BlobHttpHeaders();
-        headers.setContentType(M3U8_CONTENT_TYPE);
-        Arrays.stream(target.getParentFile().listFiles())
-                .filter(file -> file.getName().contains(fileName) && file.getName().endsWith(".ts"))
+        headers.setContentType(MP4_CONTENT_TYPE);
+        Arrays.stream(source.getParentFile().listFiles())
+                .filter(file -> file.getName().contains(fileName) && file.getName().endsWith(".mp4"))
                 .forEach(tsFile -> videoService.uploadFile(tsFile, headers));
-        String uploadUrl = videoService.uploadFile(target, headers);
 
-        Arrays.stream(target.getParentFile().listFiles())
-                .filter(file -> file.getName().contains(fileName) && file.getName().endsWith(".ts"))
+        Arrays.stream(source.getParentFile().listFiles())
+                .filter(file -> file.getName().contains(fileName) && file.getName().endsWith(".mp4"))
                 .forEach(tsFile -> {
                     try {
                         FileUtils.forceDelete(tsFile);
@@ -87,7 +85,7 @@ public class HLSTransmuxingTask {
                         e.printStackTrace();
                     }
                 });
-        FileUtils.forceDelete(target);
-        return new AsyncResult<>(uploadUrl);
+
+        return new AsyncResult<>(null);
     }
 }

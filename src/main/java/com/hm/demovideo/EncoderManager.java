@@ -1,7 +1,9 @@
 package com.hm.demovideo;
 
 import com.hm.demovideo.models.EncodingAttributeType;
+import com.hm.demovideo.tasks.DASHTransmuxingTask;
 import com.hm.demovideo.tasks.HLSTransmuxingTask;
+import com.hm.demovideo.tasks.SegmentationTask;
 import com.hm.demovideo.tasks.ThumbnailExtractorTask;
 import com.hm.demovideo.tasks.VideoEncoderTask;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
@@ -23,36 +25,27 @@ import java.util.concurrent.Future;
 public class EncoderManager {
 
     private static final String TEMP_DIR = "temp";
-    private static final String IMAGE_TARGET_FORMAT = "png";
-    private static final String VIDEO_TARGET_FORMAT = "mp4";
-    private static final String HLS_TARGET_FORMAT = "m3u8";
 
     private final HLSTransmuxingTask hlsTransmuxingTask;
+    private final DASHTransmuxingTask dashTransmuxingTask;
     private final VideoEncoderTask videoEncoderTask;
     private final ThumbnailExtractorTask thumbnailExtractorTask;
+    private final SegmentationTask segmentationTask;
 
     @Autowired
     public EncoderManager(HLSTransmuxingTask hlsTransmuxingTask,
+                          DASHTransmuxingTask dashTransmuxingTask,
                           VideoEncoderTask videoEncoderTask,
-                          ThumbnailExtractorTask thumbnailExtractorTask) {
+                          ThumbnailExtractorTask thumbnailExtractorTask, SegmentationTask segmentationTask) {
         this.hlsTransmuxingTask = hlsTransmuxingTask;
+        this.dashTransmuxingTask = dashTransmuxingTask;
         this.videoEncoderTask = videoEncoderTask;
         this.thumbnailExtractorTask = thumbnailExtractorTask;
+        this.segmentationTask = segmentationTask;
     }
 
     @Async("asyncExecutor")
-    public void transmux(MultipartFile mediaResource) throws IOException, ExecutionException, InterruptedException {
-        final String fileName = mediaResource.getOriginalFilename().substring(0, mediaResource.getOriginalFilename().lastIndexOf("."));
-        final File source = storeTempFile(mediaResource);
-        final File target = new File(String.format("%s//%s.%s", TEMP_DIR, fileName, HLS_TARGET_FORMAT));
-        Future<String> future = hlsTransmuxingTask.transmux(source, target, fileName);
-        future.get();
-
-        FileUtils.forceDelete(source);
-    }
-
-    @Async("asyncExecutor")
-    public void encode(MultipartFile mediaResource) throws IOException, EncoderException {
+    public void encode(MultipartFile mediaResource, String imageTargetFormat, String videoTargetFormat) throws IOException, EncoderException {
         final String fileName = mediaResource.getOriginalFilename().substring(0, mediaResource.getOriginalFilename().lastIndexOf("."));
         final File source = storeTempFile(mediaResource);
 
@@ -64,7 +57,7 @@ public class EncoderManager {
                     attributeType.getVideoWidth(),
                     attributeType.getVideoHeight(),
                     attributeType.getVideoBitRate(),
-                    IMAGE_TARGET_FORMAT));
+                    imageTargetFormat));
             imageResults.add(thumbnailExtractorTask.render(source, attributeType, 10, targetImage, 5));
 
             File targetVideo = new File(String.format("%s//%s_%d_%d_%d.%s", TEMP_DIR,
@@ -72,8 +65,8 @@ public class EncoderManager {
                     attributeType.getVideoWidth(),
                     attributeType.getVideoHeight(),
                     attributeType.getVideoBitRate(),
-                    VIDEO_TARGET_FORMAT));
-            videoResults.add(videoEncoderTask.encode(source, attributeType, targetVideo, VIDEO_TARGET_FORMAT));
+                    videoTargetFormat));
+            videoResults.add(videoEncoderTask.encode(source, attributeType, targetVideo, videoTargetFormat));
         }
 
         imageResults.forEach(result -> {
@@ -92,6 +85,35 @@ public class EncoderManager {
             }
         });
 
+        FileUtils.forceDelete(source);
+    }
+
+    @Async("asyncExecutor")
+    public void segment(MultipartFile mediaResource, String targetFormat) throws IOException, ExecutionException, InterruptedException {
+        final String fileName = mediaResource.getOriginalFilename().substring(0, mediaResource.getOriginalFilename().lastIndexOf("."));
+        final File source = storeTempFile(mediaResource);
+        Future<String> future = segmentationTask.segmentVideo(source, fileName, targetFormat);
+        future.get();
+    }
+
+    @Async("asyncExecutor")
+    public void transmux(MultipartFile mediaResource, String targetFormat) throws IOException, ExecutionException, InterruptedException {
+        final String fileName = mediaResource.getOriginalFilename().substring(0, mediaResource.getOriginalFilename().lastIndexOf("."));
+        final File source = storeTempFile(mediaResource);
+        final File target = new File(String.format("%s//%s.%s", TEMP_DIR, fileName, targetFormat));
+        Future<String> future;
+        switch (targetFormat) {
+            case "m3u8":
+                future = hlsTransmuxingTask.transmuxHls(source, target, fileName);
+                break;
+            case "mpd":
+                future = dashTransmuxingTask.transmuxDash(source, target, fileName);
+                break;
+            default:
+                throw new IllegalStateException("Unexpected value: " + targetFormat);
+        }
+
+        future.get();
         FileUtils.forceDelete(source);
     }
 
