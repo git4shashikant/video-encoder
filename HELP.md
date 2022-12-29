@@ -1,8 +1,3 @@
-# Read Me First
-The following was discovered as part of building this project:
-
-* The original package name 'com.hm.demo-video' is invalid and this project uses 'com.hm.demovideo' instead.
-
 # Getting Started
 
 ### Reference Documentation
